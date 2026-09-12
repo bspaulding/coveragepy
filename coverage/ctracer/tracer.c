@@ -168,6 +168,38 @@ CTracer_showlog(CTracer * self, int lineno, PyObject * filename, const char * ms
 static const char * what_sym[] = {"CALL", "EXC ", "LINE", "RET "};
 #endif
 
+/* Cache of PyLong objects for small line numbers, to avoid allocating a
+ * fresh int object on every single-line trace hit.  Source files with
+ * thousands of lines are common, so CPython's built-in small-int cache
+ * (which only covers -5..256) doesn't help much here.  These objects are
+ * immutable and safe to share as members of many different sets, and we
+ * intentionally never release them: they live for the life of the process,
+ * the same way CPython's own small-int cache does. */
+#define LINE_NUMBER_CACHE_SIZE 8192
+static PyObject *line_number_cache[LINE_NUMBER_CACHE_SIZE];
+
+static PyObject *
+CTracer_line_number_obj(int lineno)
+{
+    PyObject *obj;
+
+    if ((unsigned int)lineno >= LINE_NUMBER_CACHE_SIZE) {
+        return PyLong_FromLong((long)lineno);
+    }
+
+    obj = line_number_cache[lineno];
+    if (obj == NULL) {
+        obj = PyLong_FromLong((long)lineno);
+        if (obj == NULL) {
+            return NULL;
+        }
+        line_number_cache[lineno] = obj;
+    }
+
+    Py_INCREF(obj);
+    return obj;
+}
+
 /* Record a pair of integers in self->pcur_entry->file_data. */
 static int
 CTracer_record_pair(CTracer *self, int l1, int l2)
@@ -696,7 +728,7 @@ CTracer_handle_line(CTracer *self, PyFrameObject *frame)
                     }
                     else {
                         /* Tracing lines: key is simply this_line. */
-                        PyObject * this_line = PyLong_FromLong((long)lineno_from);
+                        PyObject * this_line = CTracer_line_number_obj(lineno_from);
                         if (this_line == NULL) {
                             goto error;
                         }
