@@ -97,10 +97,10 @@ if __name__ == "__main__":
     base_times = bench_baseline(REPEATS)
     base_med = summarize("baseline (no coverage)", base_times)
 
-    ctrace_line = bench_coverage(REPEATS, config_file=False)
+    ctrace_line = bench_coverage(REPEATS, config_file=False, core="ctrace")
     summarize("ctrace, line-only", ctrace_line, base_med)
 
-    ctrace_branch = bench_coverage(REPEATS, config_file=False, branch=True)
+    ctrace_branch = bench_coverage(REPEATS, config_file=False, core="ctrace", branch=True)
     summarize("ctrace, branch", ctrace_branch, base_med)
 
     pytrace_line = bench_coverage(REPEATS, config_file=False, timid=True)
